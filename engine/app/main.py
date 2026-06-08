@@ -70,6 +70,24 @@ def _parent_death_watchdog(parent_pid: int | None) -> None:
     threading.Thread(target=loop, daemon=True).start()
 
 
+# How many recent turns to replay verbatim; older turns fold into a rolling summary.
+KEEP_RECENT_TURNS = 3
+
+
+async def _update_summary(model: str, prev: str, turns: list[tuple[str, str]],
+                         keys: dict) -> str:
+    """Fold new exchanges into the running summary (one extra model call)."""
+    convo = "\n".join(f"User: {u}\nAssistant: {a}" for u, a in turns)
+    system = ("You maintain a running summary of a conversation. Update it to include the "
+              "new exchanges, preserving all names, facts, numbers, and decisions. Be concise.")
+    prompt = (f"Current summary:\n{prev or '(none)'}\n\nNew exchanges:\n{convo}\n\n"
+              "Updated summary:")
+    text = await connectors.complete(
+        model, "text", [{"role": "user", "content": prompt}], keys=keys, system=system
+    )
+    return text.strip()
+
+
 def _route_for(req: TaskRequest):
     c = classify(req.input)
     if req.override_model and req.override_model in catalog.MODELS:
@@ -164,19 +182,38 @@ async def generate(req: TaskRequest) -> StreamingResponse:
         STATE["db_path"], domain=c.domain, intent=c.intent
     )
     history = await db.get_history(STATE["db_path"], task_id) if req.task_id else []
+
+    # SCB summarization: fold turns beyond the recent window into a rolling summary
+    summary, summarized = "", 0
+    if req.task_id and c.domain == "text":
+        summary, summarized = await db.get_summary(STATE["db_path"], task_id)
+        to_sum = max(0, len(history) - KEEP_RECENT_TURNS)
+        if decision.model and to_sum > summarized:
+            summary = await _update_summary(
+                decision.model, summary, history[summarized:to_sum], STATE["api_keys"]
+            )
+            await db.set_summary(STATE["db_path"], task_id, summary, to_sum)
+        recent = history[to_sum:]
+    else:
+        recent = history
+
     messages: list[dict] = []
-    for user_in, assistant_out in history:
+    for user_in, assistant_out in recent:
         messages.append({"role": "user", "content": user_in})
         messages.append({"role": "assistant", "content": assistant_out})
     messages.append({"role": "user", "content": req.input})
 
-    # Intent Compiler: apply the intent's output contract as the system prompt
+    # Intent Compiler: apply the intent's output contract as the system prompt,
+    # with the rolling summary of older turns appended as context.
     system_prompt = brief.compile_brief(c.intent, req.mode)
+    if summary:
+        system_prompt += f"\n\nEarlier conversation summary: {summary}"
 
     async def sse():
         import json as _json
         yield ("event: routing\ndata: " + _json.dumps({
             "task_id": task_id, "turn": len(history) + 1,
+            "summarized_turns": len(history) - len(recent),
             "classification": c.__dict__,
             "model": decision.model, "fallbacks": decision.fallbacks,
             "mode": decision.mode, "cost_in_out": decision.cost_in_out,

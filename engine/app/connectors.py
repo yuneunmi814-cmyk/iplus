@@ -152,3 +152,12 @@ async def stream_generate(model: str, domain: str, messages: Messages, *,
 
     async for chunk in gen:
         yield chunk
+
+
+async def complete(model: str, domain: str, messages: Messages, *,
+                   keys: dict[str, str], system: str | None = None) -> str:
+    """Non-streaming convenience: collect the full text (used for summarization)."""
+    parts: list[str] = []
+    async for chunk in stream_generate(model, domain, messages, keys=keys, system=system):
+        parts.append(chunk)
+    return "".join(parts)

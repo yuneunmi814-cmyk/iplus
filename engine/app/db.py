@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS context_buffers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER REFERENCES tasks(id),
     summary TEXT, key_facts TEXT, system_prompt_slot TEXT,
+    summarized_turns INTEGER DEFAULT 0,
     updated_at TEXT DEFAULT (datetime('now'))
 );
 """
@@ -42,6 +43,42 @@ CREATE TABLE IF NOT EXISTS context_buffers (
 async def init_db(path: str) -> None:
     async with aiosqlite.connect(path) as db:
         await db.executescript(SCHEMA)
+        # migration for dbs created before summarized_turns existed
+        try:
+            await db.execute(
+                "ALTER TABLE context_buffers ADD COLUMN summarized_turns INTEGER DEFAULT 0"
+            )
+        except Exception:
+            pass  # column already exists
+        await db.commit()
+
+
+async def get_summary(path: str, task_id: int) -> tuple[str, int]:
+    """(running summary, number of turns already folded into it)."""
+    async with aiosqlite.connect(path) as db:
+        cur = await db.execute(
+            "SELECT summary, summarized_turns FROM context_buffers WHERE task_id=? LIMIT 1",
+            (task_id,),
+        )
+        row = await cur.fetchone()
+        return (row[0] or "", row[1] or 0) if row else ("", 0)
+
+
+async def set_summary(path: str, task_id: int, summary: str, summarized_turns: int) -> None:
+    async with aiosqlite.connect(path) as db:
+        cur = await db.execute("SELECT id FROM context_buffers WHERE task_id=?", (task_id,))
+        row = await cur.fetchone()
+        if row:
+            await db.execute(
+                "UPDATE context_buffers SET summary=?, summarized_turns=?, "
+                "updated_at=datetime('now') WHERE id=?",
+                (summary, summarized_turns, row[0]),
+            )
+        else:
+            await db.execute(
+                "INSERT INTO context_buffers (task_id, summary, summarized_turns) VALUES (?,?,?)",
+                (task_id, summary, summarized_turns),
+            )
         await db.commit()
 
 

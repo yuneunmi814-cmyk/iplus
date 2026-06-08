@@ -126,7 +126,9 @@ Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (mandatory),
       replayed as messages, so context survives even a model/mode switch
 - [x] **Intent Compiler v1** — an intent-specific output contract (system prompt) is
       applied for you and tuned by mode; the system does the prompt engineering
-- [ ] SCB summarization (long context) + Intent Compiler slot-filling / clarifying questions
+- [x] **SCB summarization** — turns beyond a recent window fold into a rolling summary,
+      so long conversations keep their memory within a token budget
+- [ ] Intent Compiler slot-filling / clarifying questions
 - [ ] Image / audio / video generation (text generation works today)
 - [ ] Cloud tier (subscription · KMS · teams)
 
