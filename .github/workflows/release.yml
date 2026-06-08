@@ -56,12 +56,8 @@ jobs:
           # Updater signing (minisign). The pubkey lives in tauri.conf.json.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS code signing / notarization (optional — ad-hoc build without it)
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # NOTE: no APPLE_*/Windows cert secrets -> ad-hoc/unsigned build. Add code-signing
+          # certs later for notarized installers (avoids the empty-cert import failure on CI).
         with:
           projectPath: frontend
           tagName: ${{ github.ref_name }}
