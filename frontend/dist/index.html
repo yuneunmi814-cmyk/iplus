@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iPlus</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+      background: #f7f8fa; color: #1a1a1a; height: 100vh;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    header { margin-top: 14vh; text-align: center; }
+    h1 { font-size: 40px; margin: 0 0 6px; letter-spacing: -1px; }
+    .sub { color: #6b7280; font-size: 15px; margin-bottom: 28px; }
+    .composer {
+      width: min(680px, 90vw); display: flex; gap: 8px;
+      background: #fff; border: 1px solid #e3e6ea; border-radius: 14px;
+      padding: 10px 10px 10px 16px; box-shadow: 0 4px 18px rgba(0,0,0,.05);
+    }
+    #input { flex: 1; border: none; outline: none; font-size: 16px; background: transparent; }
+    button {
+      border: none; background: #111; color: #fff; border-radius: 10px;
+      padding: 0 18px; font-size: 15px; cursor: pointer;
+    }
+    button:disabled { opacity: .4; cursor: default; }
+    .modes { display: flex; gap: 14px; margin: 14px 0 0; justify-content: center; }
+    .modes label { font-size: 13px; color: #6b7280; cursor: pointer; }
+    .modes input { margin-right: 3px; }
+    .result {
+      width: min(680px, 90vw); margin-top: 26px; background: #fff;
+      border: 1px solid #e3e6ea; border-radius: 12px; padding: 18px;
+      font-size: 14px; display: none;
+    }
+    .result.show { display: block; }
+    .chip {
+      display: inline-block; background: #eef2ff; color: #3730a3;
+      border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-right: 6px;
+    }
+    .model { font-weight: 600; font-size: 16px; margin: 8px 0; }
+    .meta { color: #6b7280; font-size: 13px; line-height: 1.6; }
+    .warn { color: #b91c1c; }
+    .status { position: fixed; bottom: 12px; font-size: 12px; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>iPlus</h1>
+    <div class="sub">Just say what you want to do. Leave the rest to us.</div>
+  </header>
+
+  <div class="composer">
+    <input id="input" placeholder="e.g. Draft a business plan" autofocus />
+    <button id="go">Run</button>
+  </div>
+  <div class="modes">
+    <label><input type="radio" name="mode" value="eco">Economy</label>
+    <label><input type="radio" name="mode" value="balanced" checked>Balanced</label>
+    <label><input type="radio" name="mode" value="quality">Quality</label>
+  </div>
+
+  <div class="result" id="result"></div>
+  <div class="status" id="status">Checking engine connection…</div>
+
+  <script>
+    const ENGINE = "http://127.0.0.1:8787";
+    const $ = (id) => document.getElementById(id);
+
+    async function ping() {
+      try {
+        const r = await fetch(ENGINE + "/health");
+        const j = await r.json();
+        $("status").textContent = `Engine v${j.version} connected` +
+          (j.keys.length ? ` · keys: ${j.keys.join(", ")}` : " · local mode (no keys)");
+      } catch {
+        $("status").textContent = "Engine not connected — check the iplus-engine sidecar";
+      }
+    }
+
+    async function run() {
+      const input = $("input").value.trim();
+      if (!input) return;
+      const mode = document.querySelector('input[name=mode]:checked').value;
+      $("go").disabled = true;
+      try {
+        const r = await fetch(ENGINE + "/tasks", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input, mode }),
+        });
+        const j = await r.json();
+        const c = j.classification, rt = j.routing;
+        const cost = rt.cost_in_out ? `$${rt.cost_in_out[0]}/$${rt.cost_in_out[1]} per 1M` : "unit price";
+        $("result").innerHTML = `
+          <span class="chip">${c.domain}</span>
+          <span class="chip">${c.intent}</span>
+          <span class="chip">${c.level} · conf ${c.confidence}</span>
+          <div class="model">${rt.model ? "→ " + rt.model : '<span class="warn">no eligible model</span>'}</div>
+          <div class="meta">
+            mode: ${rt.mode} · cost: ${cost}<br>
+            ${rt.fallbacks.length ? "fallbacks: " + rt.fallbacks.join(" → ") + "<br>" : ""}
+            ${rt.note ? '<span class="warn">⚠ ' + rt.note + "</span>" : ""}
+          </div>`;
+        $("result").classList.add("show");
+      } catch (e) {
+        $("result").innerHTML = '<span class="warn">Engine call failed: ' + e + "</span>";
+        $("result").classList.add("show");
+      } finally {
+        $("go").disabled = false;
+      }
+    }
+
+    $("go").addEventListener("click", run);
+    $("input").addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+    ping(); setInterval(ping, 5000);
+  </script>
+</body>
+</html>

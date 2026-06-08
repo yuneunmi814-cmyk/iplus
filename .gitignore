@@ -1,0 +1,26 @@
+# Python
+engine/.venv/
+engine/.build-venv/
+engine/build/
+engine/dist/
+engine/*.spec
+__pycache__/
+*.pyc
+*.db
+
+# Tauri / Rust
+frontend/src-tauri/target/
+frontend/src-tauri/binaries/iplus-engine-*
+frontend/src-tauri/gen/
+
+# Node
+frontend/node_modules/
+
+# Secrets / signing
+*.key
+*.p12
+*.pfx
+.env
+
+# OS
+.DS_Store

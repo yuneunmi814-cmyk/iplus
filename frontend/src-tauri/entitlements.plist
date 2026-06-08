@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- iPlus local tier needs no mic/screen permissions, only network. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <!-- The PyInstaller sidecar (iplus-engine) extracts Python.framework to /tmp at
+       runtime and dlopen()s it. Hardened runtime's library validation would block
+       this on a Team ID mismatch, so we allow it below.
+       (Standard fix for PyInstaller + hardened runtime.) -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+</dict>
+</plist>
