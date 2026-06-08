@@ -4,6 +4,11 @@
 
 **Say what you want to do — iPlus picks the right AI for you.**
 
+[![tests](https://github.com/yuneunmi814-cmyk/iplus/actions/workflows/test.yml/badge.svg)](https://github.com/yuneunmi814-cmyk/iplus/actions/workflows/test.yml)
+[![release](https://img.shields.io/github/v/release/yuneunmi814-cmyk/iplus)](https://github.com/yuneunmi814-cmyk/iplus/releases)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](#install)
+
 An open-core AI orchestration desktop app. You describe your intent in one line;
 iPlus judges intent, cost, quality, and modality, then **auto-dispatches** the best
 model. You never need to know model names (GPT, Claude, Gemini, Sora…).
