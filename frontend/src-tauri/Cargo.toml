@@ -1,6 +1,6 @@
 [package]
 name = "iplus"
-version = "0.2.0"
+version = "0.3.0"
 description = "iPlus — AI 오케스트레이션 데스크톱 앱 (오픈코어 로컬 티어)"
 authors = ["iPlus"]
 license = "MIT"

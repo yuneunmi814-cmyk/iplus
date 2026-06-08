@@ -1,6 +1,6 @@
 {
   "name": "iplus-desktop",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "iPlus 데스크톱 셸 (Tauri). 프론트는 dist/ 정적 UI.",
   "scripts": {
