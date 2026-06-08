@@ -37,6 +37,7 @@ A paid cloud tier adds managed keys, premium models, and team controls.
 ## Features
 - **System picks the model, not you** — intent → model mapping, with eco / balanced / quality modes.
 - **Cross-modality routing** — "turn this summary into an infographic" flows text → image in one step.
+- **Automatic prompt engineering** — an intent-specific output contract is applied for you, so a one-line ask gets an expert-quality prompt.
 - **Resale-aware catalog** — provider terms are enforced as a hard gate (see [the routing seed](docs/iplus_seed_routing.sql)).
 - **100% local option** — run entirely on Ollama with no cloud calls, no keys.
 - **Privacy-first** — append-only local SQLite; your data stays on your machine in the local tier.
@@ -123,7 +124,9 @@ Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (mandatory),
       BYO OpenAI / Anthropic / Google; in-app key settings (stored locally)
 - [x] **Conversation memory (SCB v1)** — multi-turn context retention; the history is
       replayed as messages, so context survives even a model/mode switch
-- [ ] SCB summarization (long context) + Intent Compiler (brief builder)
+- [x] **Intent Compiler v1** — an intent-specific output contract (system prompt) is
+      applied for you and tuned by mode; the system does the prompt engineering
+- [ ] SCB summarization (long context) + Intent Compiler slot-filling / clarifying questions
 - [ ] Image / audio / video generation (text generation works today)
 - [ ] Cloud tier (subscription · KMS · teams)
 

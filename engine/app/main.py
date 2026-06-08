@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, catalog, connectors, db
+from . import __version__, brief, catalog, connectors, db
 from .router import classify, route
 
 app = FastAPI(title="iPlus Engine", version=__version__)
@@ -170,6 +170,9 @@ async def generate(req: TaskRequest) -> StreamingResponse:
         messages.append({"role": "assistant", "content": assistant_out})
     messages.append({"role": "user", "content": req.input})
 
+    # Intent Compiler: apply the intent's output contract as the system prompt
+    system_prompt = brief.compile_brief(c.intent, req.mode)
+
     async def sse():
         import json as _json
         yield ("event: routing\ndata: " + _json.dumps({
@@ -188,7 +191,8 @@ async def generate(req: TaskRequest) -> StreamingResponse:
         acc: list[str] = []
         try:
             async for chunk in connectors.stream_generate(
-                decision.model, c.domain, messages, keys=STATE["api_keys"]
+                decision.model, c.domain, messages, keys=STATE["api_keys"],
+                system=system_prompt,
             ):
                 acc.append(chunk)
                 yield "event: token\ndata: " + _json.dumps(chunk) + "\n\n"
