@@ -19,7 +19,7 @@ model. You never need to know model names (GPT, Claude, Gemini, Sora…).
 
 <img src="docs/screenshot.png" alt="iPlus — one-line input routed to a model with a streamed answer" width="720">
 
-<sub>One line in → automatic intent classification → model routing → a streamed answer. Running free on a local model (Ollama), no key.</sub>
+<sub>One line in → intent classification → model routing → a streamed answer, <b>with memory across turns</b>. Running free on a local model (Ollama), no key.</sub>
 
 </div>
 
