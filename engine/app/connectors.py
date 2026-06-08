@@ -2,6 +2,10 @@
 
 Each provider exposes an async generator yielding text chunks. The local tier
 defaults to Ollama (no key); BYO keys enable OpenAI / Anthropic / Google.
+
+`messages` is the conversation so far: a list of {"role": "user"|"assistant",
+"content": str}, oldest first, ending with the current user turn. Because the
+history is model-agnostic, the conversation survives a model switch (the SCB idea).
 Non-text modalities (image/audio/video) are not wired yet and yield a notice.
 """
 from __future__ import annotations
@@ -14,16 +18,19 @@ import httpx
 OLLAMA_URL = "http://127.0.0.1:11434"
 TEXT_DOMAIN = "text"
 
+Messages = list[dict]
+
 
 class ConnectorError(Exception):
     pass
 
 
-async def _ollama(model_key: str, prompt: str, system: str | None) -> AsyncIterator[str]:
-    messages = ([{"role": "system", "content": system}] if system else []) + [
-        {"role": "user", "content": prompt}
-    ]
-    payload = {"model": model_key, "messages": messages, "stream": True}
+def _with_system(messages: Messages, system: str | None) -> Messages:
+    return ([{"role": "system", "content": system}] if system else []) + messages
+
+
+async def _ollama(model_key: str, messages: Messages, system: str | None) -> AsyncIterator[str]:
+    payload = {"model": model_key, "messages": _with_system(messages, system), "stream": True}
     async with httpx.AsyncClient(timeout=None) as client:
         try:
             async with client.stream("POST", f"{OLLAMA_URL}/api/chat", json=payload) as r:
@@ -48,11 +55,8 @@ async def _ollama(model_key: str, prompt: str, system: str | None) -> AsyncItera
             ) from e
 
 
-async def _openai(model_key: str, prompt: str, system: str | None, key: str) -> AsyncIterator[str]:
-    messages = ([{"role": "system", "content": system}] if system else []) + [
-        {"role": "user", "content": prompt}
-    ]
-    payload = {"model": model_key, "messages": messages, "stream": True}
+async def _openai(model_key: str, messages: Messages, system: str | None, key: str) -> AsyncIterator[str]:
+    payload = {"model": model_key, "messages": _with_system(messages, system), "stream": True}
     headers = {"Authorization": f"Bearer {key}"}
     async with httpx.AsyncClient(timeout=None) as client:
         async with client.stream("POST", "https://api.openai.com/v1/chat/completions",
@@ -70,12 +74,13 @@ async def _openai(model_key: str, prompt: str, system: str | None, key: str) -> 
                     yield delta
 
 
-async def _anthropic(model_key: str, prompt: str, system: str | None, key: str) -> AsyncIterator[str]:
+async def _anthropic(model_key: str, messages: Messages, system: str | None, key: str) -> AsyncIterator[str]:
+    # Anthropic takes system separately and only user/assistant in messages.
     payload = {
         "model": model_key,
         "max_tokens": 4096,
         "stream": True,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [m for m in messages if m["role"] != "system"],
     }
     if system:
         payload["system"] = system
@@ -95,10 +100,15 @@ async def _anthropic(model_key: str, prompt: str, system: str | None, key: str) 
                         yield text
 
 
-async def _gemini(model_key: str, prompt: str, system: str | None, key: str) -> AsyncIterator[str]:
+async def _gemini(model_key: str, messages: Messages, system: str | None, key: str) -> AsyncIterator[str]:
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model_key}:streamGenerateContent?alt=sse&key={key}")
-    payload: dict = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+    contents = [
+        {"role": "model" if m["role"] == "assistant" else "user",
+         "parts": [{"text": m["content"]}]}
+        for m in messages if m["role"] != "system"
+    ]
+    payload: dict = {"contents": contents}
     if system:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
     async with httpx.AsyncClient(timeout=None) as client:
@@ -115,11 +125,12 @@ async def _gemini(model_key: str, prompt: str, system: str | None, key: str) -> 
                             yield part["text"]
 
 
-async def stream_generate(model: str, domain: str, prompt: str, *,
+async def stream_generate(model: str, domain: str, messages: Messages, *,
                           keys: dict[str, str], system: str | None = None) -> AsyncIterator[str]:
     """Dispatch to the right provider and stream text chunks.
 
-    `model` is "provider/model_key". `keys` maps provider -> api key.
+    `model` is "provider/model_key". `messages` is the full conversation. `keys`
+    maps provider -> api key.
     """
     if domain != TEXT_DOMAIN:
         yield (f"[iPlus] Generation for '{domain}' isn't wired yet — routing chose "
@@ -128,13 +139,13 @@ async def stream_generate(model: str, domain: str, prompt: str, *,
 
     provider, _, model_key = model.partition("/")
     if provider == "ollama":
-        gen = _ollama(model_key, prompt, system)
+        gen = _ollama(model_key, messages, system)
     elif provider == "openai":
-        gen = _openai(model_key, prompt, system, keys["openai"])
+        gen = _openai(model_key, messages, system, keys["openai"])
     elif provider == "anthropic":
-        gen = _anthropic(model_key, prompt, system, keys["anthropic"])
+        gen = _anthropic(model_key, messages, system, keys["anthropic"])
     elif provider == "google":
-        gen = _gemini(model_key, prompt, system, keys["google"])
+        gen = _gemini(model_key, messages, system, keys["google"])
     else:
         yield f"[iPlus] No connector for provider '{provider}'."
         return

@@ -12,9 +12,9 @@
       background: #f7f8fa; color: #1a1a1a; min-height: 100vh;
       display: flex; flex-direction: column; align-items: center;
     }
-    header { margin-top: 12vh; text-align: center; }
-    h1 { font-size: 40px; margin: 0 0 6px; letter-spacing: -1px; }
-    .sub { color: #6b7280; font-size: 15px; margin-bottom: 26px; }
+    header { margin-top: 8vh; text-align: center; }
+    h1 { font-size: 38px; margin: 0 0 6px; letter-spacing: -1px; }
+    .sub { color: #6b7280; font-size: 15px; margin-bottom: 22px; }
     .composer {
       width: min(680px, 90vw); display: flex; gap: 8px;
       background: #fff; border: 1px solid #e3e6ea; border-radius: 14px;
@@ -26,22 +26,31 @@
       padding: 0 18px; font-size: 15px; cursor: pointer;
     }
     button.primary:disabled { opacity: .4; cursor: default; }
-    .modes { display: flex; gap: 14px; margin: 14px 0 0; justify-content: center; }
+    .modes { display: flex; gap: 14px; margin: 12px 0 0; justify-content: center; align-items: center; }
     .modes label { font-size: 13px; color: #6b7280; cursor: pointer; }
     .modes input { margin-right: 3px; }
-    .card {
-      width: min(680px, 90vw); margin-top: 22px; background: #fff;
-      border: 1px solid #e3e6ea; border-radius: 12px; padding: 18px;
-      font-size: 14px; display: none;
+    .newchat {
+      font-size: 12px; color: #6b7280; background: none; border: 1px solid #e3e6ea;
+      border-radius: 8px; padding: 3px 10px; cursor: pointer; margin-left: 6px;
     }
-    .card.show { display: block; }
+    #conversation { width: min(680px, 90vw); margin-top: 22px; }
+    .turn { margin-bottom: 16px; }
+    .user {
+      background: #111; color: #fff; border-radius: 12px 12px 4px 12px;
+      padding: 8px 13px; font-size: 14px; display: inline-block; max-width: 90%;
+      margin-left: auto; float: right; clear: both;
+    }
+    .card {
+      clear: both; background: #fff; border: 1px solid #e3e6ea; border-radius: 12px;
+      padding: 16px; font-size: 14px; margin-top: 8px;
+    }
     .chip {
       display: inline-block; background: #eef2ff; color: #3730a3;
       border-radius: 6px; padding: 2px 8px; font-size: 12px; margin: 0 6px 6px 0;
     }
-    .meta { color: #6b7280; font-size: 12px; margin: 4px 0 10px; }
+    .meta { color: #6b7280; font-size: 12px; margin: 2px 0 10px; }
     .warn { color: #b91c1c; }
-    #output { white-space: pre-wrap; line-height: 1.55; font-size: 15px; }
+    .answer { white-space: pre-wrap; line-height: 1.55; font-size: 15px; }
     .status { position: fixed; bottom: 12px; font-size: 12px; color: #9ca3af; }
     .gear {
       position: fixed; top: 14px; right: 16px; cursor: pointer;
@@ -50,20 +59,14 @@
     .panel {
       position: fixed; top: 44px; right: 16px; width: 320px; background: #fff;
       border: 1px solid #e3e6ea; border-radius: 12px; padding: 16px;
-      box-shadow: 0 8px 30px rgba(0,0,0,.12); display: none;
+      box-shadow: 0 8px 30px rgba(0,0,0,.12); display: none; z-index: 10;
     }
     .panel.show { display: block; }
     .panel h3 { margin: 0 0 4px; font-size: 14px; }
     .panel p { margin: 0 0 12px; font-size: 12px; color: #6b7280; }
     .panel label { display: block; font-size: 12px; color: #374151; margin: 8px 0 3px; }
-    .panel input {
-      width: 100%; padding: 7px 9px; border: 1px solid #e3e6ea;
-      border-radius: 8px; font-size: 13px;
-    }
-    .panel .save {
-      margin-top: 12px; width: 100%; padding: 8px; border: none;
-      background: #111; color: #fff; border-radius: 8px; cursor: pointer;
-    }
+    .panel input { width: 100%; padding: 7px 9px; border: 1px solid #e3e6ea; border-radius: 8px; font-size: 13px; }
+    .panel .save { margin-top: 12px; width: 100%; padding: 8px; border: none; background: #111; color: #fff; border-radius: 8px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -90,18 +93,20 @@
     <label><input type="radio" name="mode" value="eco">Economy</label>
     <label><input type="radio" name="mode" value="balanced" checked>Balanced</label>
     <label><input type="radio" name="mode" value="quality">Quality</label>
+    <button class="newchat" id="newchat" title="Start a new conversation">New chat</button>
   </div>
 
-  <div class="card" id="card">
-    <div id="routing"></div>
-    <div id="output"></div>
-  </div>
+  <div id="conversation"></div>
   <div class="status" id="status">Checking engine connection…</div>
 
   <script>
     const ENGINE = "http://127.0.0.1:8787";
     const $ = (id) => document.getElementById(id);
     const PROVIDERS = ["openai", "anthropic", "google"];
+    let currentTaskId = null;  // conversation thread (SCB)
+
+    const escapeHtml = (s) => s.replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
     // ---- key settings (localStorage) ----
     function loadKeys() {
@@ -123,6 +128,7 @@
       $("panel").classList.remove("show");
       ping();
     };
+    $("newchat").onclick = () => { currentTaskId = null; $("conversation").innerHTML = ""; $("input").focus(); };
 
     async function ping() {
       try {
@@ -135,20 +141,29 @@
       }
     }
 
-    // ---- run with SSE streaming ----
+    // ---- run with SSE streaming + conversation threading ----
     async function run() {
       const input = $("input").value.trim();
       if (!input) return;
       const mode = document.querySelector('input[name=mode]:checked').value;
       $("go").disabled = true;
-      $("routing").innerHTML = "";
-      $("output").textContent = "";
-      $("card").classList.add("show");
+      $("input").value = "";
+
+      // append a turn (user bubble + routing + answer area)
+      const turn = document.createElement("div");
+      turn.className = "turn";
+      turn.innerHTML = `<div class="user">${escapeHtml(input)}</div>` +
+        `<div class="card"><div class="routing"></div><div class="answer"></div></div>`;
+      $("conversation").appendChild(turn);
+      const routingEl = turn.querySelector(".routing");
+      const answerEl = turn.querySelector(".answer");
+      turn.scrollIntoView({ behavior: "smooth", block: "end" });
 
       try {
+        const body = { input, mode };
+        if (currentTaskId) body.task_id = currentTaskId;
         const resp = await fetch(ENGINE + "/generate", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input, mode }),
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
         });
         const reader = resp.body.getReader();
         const dec = new TextDecoder();
@@ -159,16 +174,17 @@
           buf += dec.decode(value, { stream: true });
           const events = buf.split("\n\n");
           buf = events.pop();
-          for (const ev of events) handleEvent(ev);
+          for (const ev of events) handleEvent(ev, routingEl, answerEl);
         }
       } catch (e) {
-        $("output").innerHTML = '<span class="warn">Engine call failed: ' + e + "</span>";
+        answerEl.innerHTML = '<span class="warn">Engine call failed: ' + e + "</span>";
       } finally {
         $("go").disabled = false;
+        $("input").focus();
       }
     }
 
-    function handleEvent(raw) {
+    function handleEvent(raw, routingEl, answerEl) {
       const lines = raw.split("\n");
       let type = "message", data = "";
       for (const l of lines) {
@@ -177,17 +193,18 @@
       }
       if (type === "routing") {
         const r = JSON.parse(data), c = r.classification;
+        currentTaskId = r.task_id;
         const cost = r.cost_in_out ? `$${r.cost_in_out[0]}/$${r.cost_in_out[1]} per 1M` : "unit price";
-        $("routing").innerHTML =
+        routingEl.innerHTML =
           `<span class="chip">${c.domain}</span><span class="chip">${c.intent}</span>` +
           `<span class="chip">${r.model || "no model"}</span>` +
-          `<div class="meta">mode: ${r.mode} · ${cost}` +
+          `<div class="meta">mode: ${r.mode} · ${cost} · turn ${r.turn}` +
           (r.note ? ` · <span class="warn">${r.note}</span>` : "") + `</div>`;
       } else if (type === "token") {
-        $("output").textContent += JSON.parse(data);
+        answerEl.textContent += JSON.parse(data);
       } else if (type === "error") {
         let msg = data; try { msg = JSON.parse(data); } catch {}
-        $("output").innerHTML += '<span class="warn">' + msg + "</span>";
+        answerEl.innerHTML += '<span class="warn">' + msg + "</span>";
       }
     }
 

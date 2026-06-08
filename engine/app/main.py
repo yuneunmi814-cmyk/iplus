@@ -29,6 +29,7 @@ STATE: dict = {"db_path": ":memory:", "api_keys": {}}
 class TaskRequest(BaseModel):
     input: str
     mode: str = "balanced"
+    task_id: int | None = None  # continue an existing conversation (SCB)
     workspace_id: int | None = None
     override_model: str | None = None
     local_only: bool = False
@@ -152,13 +153,27 @@ async def run_task(req: TaskRequest) -> dict:
 async def generate(req: TaskRequest) -> StreamingResponse:
     """Classify -> route -> call the model and stream tokens back as SSE.
 
-    Events:  routing (json) -> token* (text) -> error? -> done
+    Continues a conversation when task_id is given: prior turns are replayed as
+    message history (the SCB idea — context survives even a model switch).
+    Events:  routing (json, includes task_id) -> token* (text) -> error? -> done
     """
     c, decision = _route_for(req)
+
+    # conversation thread: reuse the task or start a new one
+    task_id = req.task_id or await db.create_task(
+        STATE["db_path"], domain=c.domain, intent=c.intent
+    )
+    history = await db.get_history(STATE["db_path"], task_id) if req.task_id else []
+    messages: list[dict] = []
+    for user_in, assistant_out in history:
+        messages.append({"role": "user", "content": user_in})
+        messages.append({"role": "assistant", "content": assistant_out})
+    messages.append({"role": "user", "content": req.input})
 
     async def sse():
         import json as _json
         yield ("event: routing\ndata: " + _json.dumps({
+            "task_id": task_id, "turn": len(history) + 1,
             "classification": c.__dict__,
             "model": decision.model, "fallbacks": decision.fallbacks,
             "mode": decision.mode, "cost_in_out": decision.cost_in_out,
@@ -173,7 +188,7 @@ async def generate(req: TaskRequest) -> StreamingResponse:
         acc: list[str] = []
         try:
             async for chunk in connectors.stream_generate(
-                decision.model, c.domain, req.input, keys=STATE["api_keys"]
+                decision.model, c.domain, messages, keys=STATE["api_keys"]
             ):
                 acc.append(chunk)
                 yield "event: token\ndata: " + _json.dumps(chunk) + "\n\n"
@@ -181,7 +196,7 @@ async def generate(req: TaskRequest) -> StreamingResponse:
             yield "event: error\ndata: " + _json.dumps(str(e)) + "\n\n"
         finally:
             await db.log_run(
-                STATE["db_path"], task_id=None, model=decision.model, mode=req.mode,
+                STATE["db_path"], task_id=task_id, model=decision.model, mode=req.mode,
                 input_text=req.input, output="".join(acc),
             )
         yield "event: done\ndata: {}\n\n"

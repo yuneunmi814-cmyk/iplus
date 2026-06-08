@@ -45,6 +45,26 @@ async def init_db(path: str) -> None:
         await db.commit()
 
 
+async def create_task(path: str, *, domain: str, intent: str) -> int:
+    async with aiosqlite.connect(path) as db:
+        cur = await db.execute(
+            "INSERT INTO tasks (domain, intent, status) VALUES (?,?,'open')",
+            (domain, intent),
+        )
+        await db.commit()
+        return cur.lastrowid
+
+
+async def get_history(path: str, task_id: int) -> list[tuple[str, str]]:
+    """Prior (input, output) turns for a task, oldest first — the SCB context."""
+    async with aiosqlite.connect(path) as db:
+        cur = await db.execute(
+            "SELECT input, output FROM task_runs WHERE task_id=? AND output != '' ORDER BY id",
+            (task_id,),
+        )
+        return [(r[0], r[1]) for r in await cur.fetchall()]
+
+
 async def log_run(path: str, *, task_id: int | None, model: str | None, mode: str,
                   input_text: str, output: str = "", tokens_in: int = 0, tokens_out: int = 0) -> int:
     async with aiosqlite.connect(path) as db:

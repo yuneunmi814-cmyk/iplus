@@ -121,7 +121,9 @@ Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (mandatory),
       watchdog self-terminates the engine if the shell is force-killed (no orphans)
 - [x] **Connector layer** — real streamed model calls over SSE: local Ollama (no key) +
       BYO OpenAI / Anthropic / Google; in-app key settings (stored locally)
-- [ ] SCB (context retention) + Intent Compiler (brief builder)
+- [x] **Conversation memory (SCB v1)** — multi-turn context retention; the history is
+      replayed as messages, so context survives even a model/mode switch
+- [ ] SCB summarization (long context) + Intent Compiler (brief builder)
 - [ ] Image / audio / video generation (text generation works today)
 - [ ] Cloud tier (subscription · KMS · teams)
 
