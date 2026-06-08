@@ -10,9 +10,10 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from . import __version__, catalog, db
+from . import __version__, catalog, connectors, db
 from .router import classify, route
 
 app = FastAPI(title="iPlus Engine", version=__version__)
@@ -21,7 +22,7 @@ app.add_middleware(
 )
 
 # Runtime state (injected from main)
-STATE: dict = {"db_path": ":memory:", "keys": set()}
+STATE: dict = {"db_path": ":memory:", "api_keys": {}}
 
 
 # ---- schema -------------------------------------------------------------
@@ -31,6 +32,12 @@ class TaskRequest(BaseModel):
     workspace_id: int | None = None
     override_model: str | None = None
     local_only: bool = False
+
+
+class KeysRequest(BaseModel):
+    openai: str | None = None
+    anthropic: str | None = None
+    google: str | None = None
 
 
 # ---- watchdog -----------------------------------------------------------
@@ -62,23 +69,38 @@ def _parent_death_watchdog(parent_pid: int | None) -> None:
     threading.Thread(target=loop, daemon=True).start()
 
 
+def _route_for(req: TaskRequest):
+    c = classify(req.input)
+    if req.override_model and req.override_model in catalog.MODELS:
+        decision = route(c.intent, req.mode)
+        decision.model = req.override_model
+    else:
+        decision = route(
+            c.intent, req.mode,
+            allow_keys=set(STATE["api_keys"]),  # empty set -> cloud filtered -> local fallback
+            local_only=req.local_only,
+        )
+    return c, decision
+
+
 # ---- lifecycle ----------------------------------------------------------
 @app.on_event("startup")
 async def _startup() -> None:
     _parent_death_watchdog(STATE.get("parent_pid"))
-    # BYO keys: detect available providers from env (Tauri store -> env injection)
-    keys = set()
-    if os.getenv("OPENAI_API_KEY"):    keys.add("openai")
-    if os.getenv("ANTHROPIC_API_KEY"): keys.add("anthropic")
-    if os.getenv("GOOGLE_API_KEY"):    keys.add("google")
-    STATE["keys"] = keys
+    # BYO keys: seed from env (Tauri/UI can also set them at runtime via /config)
+    for prov, env in (("openai", "OPENAI_API_KEY"),
+                      ("anthropic", "ANTHROPIC_API_KEY"),
+                      ("google", "GOOGLE_API_KEY")):
+        v = os.getenv(env)
+        if v:
+            STATE["api_keys"][prov] = v
     await db.init_db(STATE["db_path"])
 
 
 # ---- endpoints ----------------------------------------------------------
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "version": __version__, "keys": sorted(STATE["keys"])}
+    return {"status": "ok", "version": __version__, "keys": sorted(STATE["api_keys"])}
 
 
 @app.get("/catalog")
@@ -90,50 +112,81 @@ async def get_catalog() -> dict:
     }
 
 
+@app.post("/config")
+async def set_keys(req: KeysRequest) -> dict:
+    """Set BYO API keys at runtime (the UI persists them locally and posts on load)."""
+    for prov in ("openai", "anthropic", "google"):
+        val = getattr(req, prov)
+        if val:
+            STATE["api_keys"][prov] = val
+        elif val == "":  # explicit clear
+            STATE["api_keys"].pop(prov, None)
+    return {"keys": sorted(STATE["api_keys"])}
+
+
 @app.post("/classify")
 async def do_classify(req: TaskRequest) -> dict:
-    c = classify(req.input)
-    return c.__dict__
+    return classify(req.input).__dict__
 
 
 @app.post("/tasks")
 async def run_task(req: TaskRequest) -> dict:
-    """One-line input -> classify -> mode-aware routing -> (model call stub) -> log."""
-    c = classify(req.input)
-
-    if req.override_model and req.override_model in catalog.MODELS:
-        decision = route(c.intent, req.mode)
-        chosen = req.override_model
-        decision.model = chosen
-    else:
-        decision = route(
-            c.intent, req.mode,
-            allow_keys=STATE["keys"] or None,
-            local_only=req.local_only,
-        )
-        chosen = decision.model
-
-    # Real model calls happen in the connector layer (MVP: returns the decision only).
-    output = ""
+    """One-line input -> classify -> mode-aware routing decision (no generation)."""
+    c, decision = _route_for(req)
     run_id = await db.log_run(
-        STATE["db_path"], task_id=None, model=chosen, mode=req.mode,
-        input_text=req.input, output=output,
+        STATE["db_path"], task_id=None, model=decision.model, mode=req.mode,
+        input_text=req.input, output="",
     )
-
     return {
         "run_id": run_id,
         "classification": c.__dict__,
         "routing": {
-            "model": chosen,
-            "fallbacks": decision.fallbacks,
-            "mode": decision.mode,
-            "cost_in_out": decision.cost_in_out,
-            "resale_ok": decision.resale_ok,
-            "local": decision.local_only,
-            "note": decision.note,
+            "model": decision.model, "fallbacks": decision.fallbacks, "mode": decision.mode,
+            "cost_in_out": decision.cost_in_out, "resale_ok": decision.resale_ok,
+            "local": decision.local_only, "note": decision.note,
         },
-        "output": output,  # empty until the connector layer is wired
     }
+
+
+@app.post("/generate")
+async def generate(req: TaskRequest) -> StreamingResponse:
+    """Classify -> route -> call the model and stream tokens back as SSE.
+
+    Events:  routing (json) -> token* (text) -> error? -> done
+    """
+    c, decision = _route_for(req)
+
+    async def sse():
+        import json as _json
+        yield ("event: routing\ndata: " + _json.dumps({
+            "classification": c.__dict__,
+            "model": decision.model, "fallbacks": decision.fallbacks,
+            "mode": decision.mode, "cost_in_out": decision.cost_in_out,
+            "local": decision.local_only, "note": decision.note,
+        }) + "\n\n")
+
+        if not decision.model:
+            yield "event: error\ndata: No eligible model. Add an API key or run Ollama.\n\n"
+            yield "event: done\ndata: {}\n\n"
+            return
+
+        acc: list[str] = []
+        try:
+            async for chunk in connectors.stream_generate(
+                decision.model, c.domain, req.input, keys=STATE["api_keys"]
+            ):
+                acc.append(chunk)
+                yield "event: token\ndata: " + _json.dumps(chunk) + "\n\n"
+        except connectors.ConnectorError as e:
+            yield "event: error\ndata: " + _json.dumps(str(e)) + "\n\n"
+        finally:
+            await db.log_run(
+                STATE["db_path"], task_id=None, model=decision.model, mode=req.mode,
+                input_text=req.input, output="".join(acc),
+            )
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(sse(), media_type="text/event-stream")
 
 
 def main() -> None:

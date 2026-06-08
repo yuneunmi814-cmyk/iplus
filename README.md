@@ -108,8 +108,10 @@ Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (mandatory),
 - [x] **Tauri shell + sidecar + signed updater + CI** — `.dmg` (20 MB) built & run-verified
 - [x] **Sidecar auto-start / cleanup** — engine spawns & health-checks inside the app; a
       watchdog self-terminates the engine if the shell is force-killed (no orphans)
-- [ ] Connector layer: real model calls (BYO keys / Ollama) + SSE streaming
+- [x] **Connector layer** — real streamed model calls over SSE: local Ollama (no key) +
+      BYO OpenAI / Anthropic / Google; in-app key settings (stored locally)
 - [ ] SCB (context retention) + Intent Compiler (brief builder)
+- [ ] Image / audio / video generation (text generation works today)
 - [ ] Cloud tier (subscription · KMS · teams)
 
 ### macOS packaging gotchas found by actually running the app (a review can't catch these)

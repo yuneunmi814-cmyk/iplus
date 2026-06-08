@@ -15,9 +15,10 @@ jobs:
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
             triple: aarch64-apple-darwin
-          - platform: macos-latest
-            args: "--target x86_64-apple-darwin"
-            triple: x86_64-apple-darwin
+          # NOTE: Intel macOS (x86_64) is intentionally omitted for now —
+          # PyInstaller can't cross-compile the engine on the arm64 runner, so an
+          # x86_64 installer would bundle an arm64 sidecar. Add a native x86_64
+          # engine build before re-enabling this target.
           - platform: windows-latest
             args: ""
             triple: x86_64-pc-windows-msvc
