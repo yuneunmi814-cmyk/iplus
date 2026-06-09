@@ -114,7 +114,8 @@ answered at `http://localhost:8787/health`. Ideas and questions are equally welc
 
 ## 7 · Conduct & license
 
-Be kind and assume good intent — we want this to be a friendly place to learn and build.
+Be kind and assume good intent — see the [Code of Conduct](CODE_OF_CONDUCT.md). We want
+this to be a friendly place to learn and build.
 By contributing, you agree your work is licensed under the project's [MIT License](LICENSE).
 
 Happy hacking 🚀
