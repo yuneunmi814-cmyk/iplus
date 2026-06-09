@@ -7,7 +7,7 @@
 [![tests](https://github.com/yuneunmi814-cmyk/iplus/actions/workflows/test.yml/badge.svg)](https://github.com/yuneunmi814-cmyk/iplus/actions/workflows/test.yml)
 [![release](https://img.shields.io/github/v/release/yuneunmi814-cmyk/iplus)](https://github.com/yuneunmi814-cmyk/iplus/releases)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](#install)
+[![platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)](#quickstart-5-minutes)
 
 An open-core AI orchestration desktop app. You describe your intent in one line;
 iPlus judges intent, cost, quality, and modality, then **auto-dispatches** the best
@@ -88,7 +88,7 @@ curl localhost:8787/health
 
 ### Run the tests
 ```bash
-cd engine && pip install -r requirements-dev.txt && python -m pytest   # 35 passing
+cd engine && pip install -r requirements-dev.txt && python -m pytest   # 41 passing
 ```
 
 ## Why iPlus
