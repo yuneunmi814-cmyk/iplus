@@ -13,7 +13,7 @@ An open-core AI orchestration desktop app. You describe your intent in one line;
 iPlus judges intent, cost, quality, and modality, then **auto-dispatches** the best
 model. You never need to know model names (GPT, Claude, Gemini, Sora…).
 
-[Features](#features) · [Install](#install) · [Build](#build-from-source) · [How it works](#architecture) · [Roadmap](#status)
+[**Quickstart**](#quickstart-5-minutes) · [Features](#features) · [How it works](#architecture) · [Build the app](#build-the-desktop-app) · [Roadmap](#status)
 
 <br>
 
@@ -24,6 +24,66 @@ model. You never need to know model names (GPT, Claude, Gemini, Sora…).
 </div>
 
 ---
+
+## Quickstart (5 minutes)
+
+Both paths give you a working AI that runs **free and 100% local — no API key required**.
+
+### A · Just use it (no coding, ~3 min)
+
+1. **Download** the installer for your OS from the **[latest release](../../releases/latest)**:
+   - macOS (Apple Silicon): `iPlus_*_aarch64.dmg`
+   - Windows: `iPlus_*_x64-setup.exe`
+2. **Open it.** Builds are unsigned for now, so the first launch needs one click:
+   - macOS: right-click the app → **Open** (bypasses Gatekeeper)
+   - Windows: **More info → Run anyway** on the SmartScreen prompt
+3. **Get a free local model** (recommended): install **[Ollama](https://ollama.com)**, then:
+   ```bash
+   ollama pull llama3.1:8b
+   ```
+   *(Or skip Ollama and paste your own OpenAI / Anthropic / Google key into the ⚙ settings.)*
+4. **Ask anything.** Type a request and press **Run** — the answer streams in.
+   The status bar should read `Engine v0.3.0 connected · local mode (Ollama)`.
+
+### B · Run from source (developers, ~5 min)
+
+**Prerequisites:** Python **3.12**, plus **[Ollama](https://ollama.com)** for free local answers.
+
+```bash
+# 1 · clone
+git clone https://github.com/yuneunmi814-cmyk/iplus.git
+cd iplus
+
+# 2 · free local model (skip if you'll use your own API key instead)
+ollama pull llama3.1:8b
+
+# 3 · start the engine
+cd engine
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m app.main                  # serves http://localhost:8787
+
+# 4 · open the UI (in a second terminal, from the repo root)
+open frontend/dist/index.html       # macOS · Linux: xdg-open · Windows: start
+```
+
+You should see the iPlus window say **“Engine v0.3.0 connected.”** Type
+*“write a haiku about the sea”* and watch it stream. Sanity-check the engine directly:
+
+```bash
+curl localhost:8787/health
+# {"status":"ok","version":"0.3.0","keys":[]}
+```
+
+**Troubleshooting**
+- Answer shows *“Cannot reach Ollama”* → run `ollama serve` in another terminal.
+- UI says *“Engine not connected”* → make sure step 3 is still running on port 8787.
+- `pydantic-core` build error → you're on Python 3.13/3.14; use **3.12** (`python3.12 -m venv`).
+
+### Run the tests
+```bash
+cd engine && pip install -r requirements-dev.txt && python -m pytest   # 35 passing
+```
 
 ## Why iPlus
 
@@ -65,25 +125,11 @@ A paid cloud tier adds managed keys, premium models, and team controls.
 | `frontend/dist/` | Static one-line-input UI (no Node build needed) |
 | `docs/` | Routing seed (`routing_rules`) SQL |
 
-## Install
-Grab the latest installer from [Releases](../../releases) (`.dmg` for macOS, `.msi`/`.exe` for Windows).
-Unsigned builds: on macOS first launch, right-click → Open to bypass Gatekeeper.
+## Build the desktop app
 
-> **Optional — local models:** install [Ollama](https://ollama.com) and `ollama pull llama3.1:8b`
-> to run fully offline. Or add your own API keys (OpenAI / Anthropic / Google) in-app.
+The [Quickstart](#quickstart-5-minutes) runs the engine from source. To build the
+installable desktop app yourself, you also need **Rust** and **Node**:
 
-## Build from source
-
-### Engine only (no Rust needed)
-```bash
-cd engine
-python3.12 -m venv .venv && source .venv/bin/activate   # Python 3.12 (3.14 wheels not ready yet)
-pip install -r requirements.txt
-python -m app.main --port 8787 --db ./iplus.db
-# then open ../frontend/dist/index.html  (or: curl localhost:8787/health)
-```
-
-### Full desktop app (Rust required)
 ```bash
 # 0) install Rust once
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
