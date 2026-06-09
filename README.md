@@ -49,7 +49,7 @@ Both paths give you a working AI that runs **free and 100% local — no API key 
    ```
    *(Or skip Ollama and paste your own OpenAI / Anthropic / Google key into the ⚙ settings.)*
 4. **Ask anything.** Type a request and press **Run** — the answer streams in.
-   The status bar should read `Engine v0.3.0 connected · local mode (Ollama)`.
+   The status bar should read `Engine v0.4.0 connected · local mode (Ollama)`.
 
 ### B · Run from source (developers, ~5 min)
 
@@ -73,12 +73,12 @@ python -m app.main                  # serves http://localhost:8787
 open frontend/dist/index.html       # macOS · Linux: xdg-open · Windows: start
 ```
 
-You should see the iPlus window say **“Engine v0.3.0 connected.”** Type
+You should see the iPlus window say **“Engine v0.4.0 connected.”** Type
 *“write a haiku about the sea”* and watch it stream. Sanity-check the engine directly:
 
 ```bash
 curl localhost:8787/health
-# {"status":"ok","version":"0.3.0","keys":[]}
+# {"status":"ok","version":"0.4.0","keys":[]}
 ```
 
 **Troubleshooting**
