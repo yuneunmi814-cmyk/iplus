@@ -156,8 +156,10 @@ npm run build
 signs, generates `latest.json`, and uploads installers for all platforms. Clients then
 auto-update via `tauri-plugin-updater`.
 
-Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (mandatory),
-`APPLE_*` (macOS notarization, optional — otherwise an ad-hoc build).
+Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (updater signing). For **signed &
+notarized** installers that drop the Gatekeeper / SmartScreen warning, see
+**[docs/SIGNING.md](docs/SIGNING.md)** — CI signs automatically once you add the certs,
+and stays ad-hoc/unsigned until then.
 
 ## Local engine API
 | Method | Path | Description |

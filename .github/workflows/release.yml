@@ -8,6 +8,10 @@ jobs:
   release:
     permissions:
       contents: write
+    # Signing turns on automatically once the APPLE_* secrets exist (see SIGNING.md).
+    # Without them this is 'false' and the build stays ad-hoc/unsigned — no failure.
+    env:
+      HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -50,14 +54,37 @@ jobs:
         working-directory: frontend
         run: npm install
 
+      # macOS code signing + notarization — runs ONLY when APPLE_CERTIFICATE is set.
+      # Imports the cert into a temp keychain and exposes the signing/notary creds to
+      # tauri-action via $GITHUB_ENV. Skipped (no-op) for unsigned/ad-hoc builds. See SIGNING.md.
+      - name: Import Apple signing certificate (macOS, if configured)
+        if: matrix.platform == 'macos-latest' && env.HAS_APPLE_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import /tmp/cert.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          {
+            echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Updater signing (minisign). The pubkey lives in tauri.conf.json.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # NOTE: no APPLE_*/Windows cert secrets -> ad-hoc/unsigned build. Add code-signing
-          # certs later for notarized installers (avoids the empty-cert import failure on CI).
+          # Apple signing/notary creds are injected by the step above only when a cert is
+          # configured; otherwise unset → tauri-action builds ad-hoc (current behavior).
         with:
           projectPath: frontend
           tagName: ${{ github.ref_name }}
