@@ -17,9 +17,15 @@ model. You never need to know model names (GPT, Claude, Gemini, Sora…).
 
 <br>
 
-<img src="docs/screenshot.png" alt="iPlus — one-line input routed to a model with a streamed answer" width="720">
+<img src="docs/demo.gif" alt="iPlus streaming an answer from a one-line request" width="720">
 
-<sub>One line in → intent classification → model routing → a streamed answer, <b>with memory across turns</b>. Running free on a local model (Ollama), no key.</sub>
+<sub>Type a request → iPlus classifies it, routes to a model, and <b>streams the answer</b> — free on a local model (Ollama), no API key.</sub>
+
+<br><br>
+
+<img src="docs/screenshot.png" alt="iPlus remembering context across turns" width="620">
+
+<sub>…and it <b>remembers across turns</b> (SCB): turn 2 recalls what you said in turn 1.</sub>
 
 </div>
 
