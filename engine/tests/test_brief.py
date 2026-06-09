@@ -49,3 +49,34 @@ def client(tmp_path, monkeypatch):
 def test_generate_applies_brief(client):
     client.post("/generate", json={"input": "fix this bug in my code", "mode": "quality"})
     assert _cap["system"] == brief.compile_brief("text.coding", "quality")
+
+
+# ---- clarifying question (Intent Compiler v2) ---------------------------
+def test_needs_clarification_translation_missing_target():
+    assert brief.needs_clarification("text.translation", "translate this sentence")
+
+
+def test_needs_clarification_translation_with_target():
+    assert brief.needs_clarification("text.translation", "translate this into Korean") is None
+
+
+def test_needs_clarification_non_translation():
+    assert brief.needs_clarification("text.coding", "write a function") is None
+
+
+def test_generate_asks_when_target_missing(client):
+    r = client.post("/generate", json={"input": "translate good morning"})
+    assert "event: clarify" in r.text
+    assert "Which language" in r.text
+    assert "event: token" not in r.text  # did not generate
+
+
+def test_generate_proceeds_when_target_present(client):
+    r = client.post("/generate", json={"input": "translate good morning into French"})
+    assert "event: clarify" not in r.text
+    assert "event: routing" in r.text
+
+
+def test_clarify_skipped_inside_a_thread(client):
+    r = client.post("/generate", json={"input": "translate good morning", "task_id": 999})
+    assert "event: clarify" not in r.text  # never re-ask mid-conversation

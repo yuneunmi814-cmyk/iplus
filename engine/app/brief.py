@@ -47,3 +47,26 @@ def compile_brief(intent: str, mode: str = "balanced") -> str:
     """Return the system prompt (output contract) for an intent + mode."""
     base = _INTENT_BRIEFS.get(intent, _DEFAULT_BRIEF)
     return base + _MODE_SUFFIX.get(mode, "")
+
+
+# Languages we recognize as a translation target (en + ko names). If a translation
+# request names none of these, the target is the one high-leverage missing slot.
+_LANGUAGES = {
+    "english", "spanish", "french", "german", "italian", "portuguese", "dutch",
+    "russian", "chinese", "mandarin", "cantonese", "japanese", "korean", "arabic",
+    "hindi", "vietnamese", "thai", "indonesian", "turkish", "polish", "swedish",
+    "greek", "hebrew", "latin",
+    "영어", "스페인어", "프랑스어", "독일어", "이탈리아어", "포르투갈어", "러시아어",
+    "중국어", "일본어", "한국어", "아랍어", "힌디어", "베트남어", "태국어", "라틴어",
+}
+
+
+def needs_clarification(intent: str, text: str) -> str | None:
+    """Return ONE high-leverage question if a required slot is clearly missing,
+    else None. Deliberately conservative — only asks when guessing would likely be
+    wrong (the design's "ask the minimum" principle)."""
+    if intent == "text.translation":
+        t = text.lower()
+        if not any(lang in t for lang in _LANGUAGES):
+            return "Which language should I translate into?"
+    return None

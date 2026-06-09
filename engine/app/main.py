@@ -175,7 +175,27 @@ async def generate(req: TaskRequest) -> StreamingResponse:
     message history (the SCB idea — context survives even a model switch).
     Events:  routing (json, includes task_id) -> token* (text) -> error? -> done
     """
-    c, decision = _route_for(req)
+    c = classify(req.input)
+
+    # Intent Compiler v2: ask one high-leverage question if a required slot is
+    # clearly missing — only on a fresh request, never mid-conversation.
+    if not req.task_id:
+        question = brief.needs_clarification(c.intent, req.input)
+        if question:
+            async def ask():
+                import json as _json
+                yield ("event: clarify\ndata: " + _json.dumps(
+                    {"question": question, "classification": c.__dict__}) + "\n\n")
+                yield "event: done\ndata: {}\n\n"
+            return StreamingResponse(ask(), media_type="text/event-stream")
+
+    # route (reusing the classification)
+    if req.override_model and req.override_model in catalog.MODELS:
+        decision = route(c.intent, req.mode)
+        decision.model = req.override_model
+    else:
+        decision = route(c.intent, req.mode,
+                         allow_keys=set(STATE["api_keys"]), local_only=req.local_only)
 
     # conversation thread: reuse the task or start a new one
     task_id = req.task_id or await db.create_task(

@@ -180,7 +180,9 @@ Required GitHub Secret: `TAURI_SIGNING_PRIVATE_KEY` (mandatory),
       applied for you and tuned by mode; the system does the prompt engineering
 - [x] **SCB summarization** — turns beyond a recent window fold into a rolling summary,
       so long conversations keep their memory within a token budget
-- [ ] Intent Compiler slot-filling / clarifying questions
+- [x] **Intent Compiler v2** — asks one high-leverage question only when a required slot is
+      clearly missing (e.g. translation with no target language), then folds the answer back in
+- [ ] Intent Compiler slot-filling from a user profile / history
 - [ ] Image / audio / video generation (text generation works today)
 - [ ] Cloud tier (subscription · KMS · teams)
 
